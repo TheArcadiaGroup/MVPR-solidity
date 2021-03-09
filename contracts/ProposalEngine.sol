@@ -13,7 +13,6 @@ contract ProposalEngine {
         FullVote,
         Withdrawn,
         Rejected,
-        Majority_Not_Reached_But_Accepted,
         Discussion,
         Pending_Approval
     }
@@ -366,7 +365,7 @@ contract ProposalEngine {
     function signProposal(uint256 proposalIndex) external {
         // TO DO: Only Compilance can sign proposals
         require(
-            msg.sender == IReputation(reputation).compliance(),
+            IReputation(reputation).isComplianceMember(msg.sender),
             "Only compliance can sign"
         );
         proposalsMapping[proposalIndex].signers.push(msg.sender);

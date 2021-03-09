@@ -25,16 +25,11 @@ interface IReputation {
 
     /// Function returns the address that is authorised to sign transactions
     /// to this contract that can affect amount of the reputation on the account
-    function authAddress(address owner)
-        external
-        view
-        returns (address, uint256);
+    function authAddress(address owner) external view returns (address, uint256);
 
     /// Authorizes address to interact with the contract on behalf
     /// of the balance owner for a some duration (amount of blocks)
-    function grantAddressAuth(address auth, uint256 duration)
-        external
-        returns (address);
+    function grantAddressAuth(address auth, uint256 duration) external returns (address);
 
     /// Extends authorized duration for the registered authorized address
     function extendAuthDuration(uint256 forDuration) external;
@@ -44,7 +39,12 @@ interface IReputation {
     function revokeAddressAuth() external;
 
     function isMember(address account) external returns (bool);
-    function compliance() external returns (address);
+
+    function addComplianceOfficer(address newComplianceMemberAddress) external;
+
+    function removeComplianceOfficer(address complianceOfficerAddressToRemove) external override onlyVotingEngine;
+
+    function isComplianceOfficer(address account) external view returns (bool);
 
     /// Produced when contract generates some about of reputation and assigns
     /// it to a certain account

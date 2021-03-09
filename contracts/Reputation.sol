@@ -21,6 +21,8 @@ contract Reputation is IReputation {
     // key : owner , value : banned
     mapping(address => bool) internal _banneds;
 
+    mapping(address => bool) public complianceOfficers;
+
     mapping(address => bool) members;
 
     uint256 internal _totalLimit;
@@ -29,10 +31,16 @@ contract Reputation is IReputation {
     address public votingEngineAddress;
     address public failSafeAddress;
     address public etaAddress;
-    address public override compliance;
 
     event FailSafeRemoved(address remover);
     event MemberAdded(address newMember);
+    event ComplianceOfficerAddition(address newComplianceOfficerAddress);
+    event ComplianceOfficerRemoval(address complianceOfficerAddressToRemove);
+
+    modifier onlyVotingEngine() {
+        require(msg.sender == votingEngineAddress, "Only voting engine is authorized");
+        _;
+    }
 
     // ------------------------------------------------------------------------
     // Constructor
@@ -51,9 +59,8 @@ contract Reputation is IReputation {
         votingEngineAddress = _votingEngineAddress;
         failSafeAddress = _failSafeAddress;
         etaAddress = _etaAddress;
-        compliance = msg.sender;
+        complianceOfficers[etaAddress] = true;
         members[_etaAddress] = true;
-        members[compliance] = true;
         members[_failSafeAddress] = true;
     }
 
@@ -94,23 +101,14 @@ contract Reputation is IReputation {
 
     /// Authorizes address to interact with the contract on behalf
     /// of the balance owner for a some duration (amount of blocks)
-    function authAddress(address owner)
-        public
-        view
-        override
-        returns (address, uint256)
-    {
+    function authAddress(address owner) public view override returns (address, uint256) {
         address auth = _authorized_addresses[owner];
         return (auth, _authorized_duration[auth]);
     }
 
     /// Authorizes address to interact with the contract on behalf
     /// of the balance owner for a some duration (amount of blocks)
-    function grantAddressAuth(address auth, uint256 duration)
-        public
-        override
-        returns (address)
-    {
+    function grantAddressAuth(address auth, uint256 duration) public override returns (address) {
         require(tx.origin == msg.sender);
         require(auth != address(0));
         require(_owner_addresses[auth] == address(0));
@@ -139,9 +137,7 @@ contract Reputation is IReputation {
         if (old_duration < block.number) {
             _authorized_duration[auth] = block.number.add(forDuration);
         } else {
-            _authorized_duration[auth] = _authorized_duration[auth].add(
-                forDuration
-            );
+            _authorized_duration[auth] = _authorized_duration[auth].add(forDuration);
         }
 
         emit AuthGranted(tx.origin, auth, forDuration);
@@ -159,57 +155,45 @@ contract Reputation is IReputation {
         emit AuthRevoked(tx.origin, auth);
     }
 
-    function mint(address account, uint256 amount) external {
-        require(
-            msg.sender == votingEngineAddress ||
-                msg.sender == etaAddress ||
-                msg.sender == failSafeAddress,
-            "You are not allowed to mint"
-        );
+    function mint(address account, uint256 amount) external onlyVotingEngine {
         require(account != address(0), "ERC-1329: No zero address allowed");
         _currentSupply = _currentSupply.add(amount);
         _balances[account] = _balances[account].add(amount);
         emit Issued(account, amount);
     }
 
-    function burn(address account, uint256 amount) external {
-        require(
-            msg.sender == votingEngineAddress ||
-                msg.sender == etaAddress ||
-                msg.sender == failSafeAddress,
-            "You are not allowed to mint"
-        );
+    function burn(address account, uint256 amount) external onlyVotingEngine {
         require(account != address(0), "ERC-1329: burn from the zero address");
 
         uint256 accountBalance = _balances[account];
-        require(
-            accountBalance >= amount,
-            "ERC-1329: burn amount exceeds balance"
-        );
+        require(accountBalance >= amount, "ERC-1329: burn amount exceeds balance");
         _balances[account] = accountBalance.sub(amount);
         _currentSupply = _currentSupply.sub(amount);
 
         emit Burned(account, amount);
     }
 
-    function removeFailSafe() external {
-        require(
-            msg.sender == votingEngineAddress ||
-                msg.sender == etaAddress ||
-                msg.sender == failSafeAddress,
-            "You are not allowed to mint"
-        );
-        failSafeAddress = address(0);
-        emit FailSafeRemoved(msg.sender);
-    }
-
     function isMember(address account) external view override returns (bool) {
         return members[account];
     }
 
-    function addMember(address account) external {
-        require(msg.sender == etaAddress, "Only ETA can add members");
+    function addMember(address account) external onlyVotingEngine {
         members[account] = true;
         emit MemberAdded(account);
+    }
+
+    function addComplianceOfficer(address newComplianceOfficerAddress) external override onlyVotingEngine {
+        complianceOfficers[newComplianceOfficerAddress] = true;
+        emit ComplianceOfficerAddition(newComplianceOfficerAddress);
+    }
+
+    function removeComplianceOfficer(address complianceOfficerAddressToRemove) external override onlyVotingEngine {
+        complianceOfficers[complianceOfficerAddressToRemove] = false;
+        emit ComplianceOfficerRemoval(complianceOfficerAddressToRemove);
+    }
+
+    // Returns true if compliance member, false otherwise
+    function isComplianceOfficer(address account) external view override returns (bool) {
+        return complianceOfficers[account];
     }
 }
